@@ -1,5 +1,3 @@
-
-
 let board;
 let height;
 let width;
@@ -28,6 +26,7 @@ function draw() {
         textSize(32);
         text(board.currentPos.playedBy + " is the winner",height/2,width/2);
     }
+    
 }
 
 function mousePressed(){
@@ -37,10 +36,14 @@ function mousePressed(){
                 board.setCurrentPos(r,c);
                 board.mat[r][c].click(true);
                 board.mat[r][c].setPlayedBy(board.getTurn());
-                win = board.update();
+                board.update();
+                win = board.checkWinner();
                 board.incrementTurn();
               }
         }
     }
+    if(!win){
+        board.computerMove();
+        win = board.checkWinner();
+    }
 }
-
