@@ -1,4 +1,5 @@
 class Board{
+    static directions = [[0,-3,0,1], [0,3,0,-1], [-3,0,1,0], [3,0,-1,0], [-3,-3,1,1], [3,3,-1,-1], [-3,3,1,-1], [3,-3,-1,1]];
     constructor(rows, cols, sideLength){
         this.turn = 0;
         this.rows = rows;
@@ -35,27 +36,17 @@ class Board{
     }
 
     checkFour(r, c, rCrement, cCrement){
-        let streak = 0;
-
+        let composition = {"human":0, "computer":0, "unplayed":0};
         for(let i = 0; i < 4; i++){
-            if(this.checkInBounds(r,c) && this.currentSpotEquals(r,c,this.currentPos.playedBy)){
-                streak += 1;
-            }
-            if(streak == 4){
-                return true;
+            if(this.checkInBounds(r,c)){
+                composition[this.mat[r][c].playedBy] = composition[this.mat[r][c].playedBy] + 1;
             }
             r += rCrement;
             c += cCrement;
         }
-        return false;
+        return composition;
     }
     
-    // isFour(streak){
-    //     // if(streak == 4){
-    //         return (streak == 4);
-    //     // }
-    // }
-
     currentSpotEquals(r, c, turn){
         return this.mat[r][c].playedBy == turn;
     }
@@ -73,7 +64,7 @@ class Board{
     }
 
     getTurn(){
-        return (this.turn & 1) == 0 ? "human" : "enemy";
+        return (this.turn & 1) == 0 ? "human" : "computer";
     }
 
     update(){
@@ -88,12 +79,10 @@ class Board{
             a.click(false);
             b.click(true);
             b.setPlayedBy(a.playedBy);
-            a.setPlayedBy(null);
+            a.setPlayedBy("unplayed");
             this.currentPos = b;
         }
         this.pieces.push(this.currentPos);
-        
-        return this.checkWinner();
     }
 
     checkWinner(){
@@ -107,42 +96,122 @@ class Board{
 
 
     checkPieceWinner(rLoc, cLoc){
-        let directions = [[0,-3,0,1], [0,3,0,-1], [-3,0,1,0], [3,0,-1,0], [-3,-3,1,1], [3,3,-1,-1], [-3,3,1,-1], [3,-3,-1,1]];
-
-        for(let i = 0; i < directions.length; i++){
-            if(this.checkFour(rLoc + directions[i][0], cLoc + directions[i][1], directions[i][2], directions[i][3])){
+        for(let i = 0; i < Board.directions.length; i++){
+            let dict = this.checkFour(rLoc + Board.directions[i][0], cLoc + Board.directions[i][1], Board.directions[i][2], Board.directions[i][3]);
+            for(let key in dict)
+            if(dict[key] == 4){
                 return true;
             }
         }
-        // //checks right of the row
-        // win.push(this.checkFour(rLoc, cLoc - 3, 0, 1));
-        
-        // //checks left of the row
-        // win.push(this.checkFour(rLoc, cLoc + 3, 0, -1));
-        
-        // //checks up in the column
-        // win.push(this.checkFour(rLoc - 3, cLoc , 1, 0));
-        
-        // //checks down in the column
-        // win.push(this.checkFour(rLoc + 3, cLoc, -1, 0));
-       
-        // //checks top left diagonal
-        // win.push(this.checkFour(rLoc - 3, cLoc - 3, 1, 1));
-        
-        // //checks bottom right diagonal
-        // win.push(this.checkFour(rLoc + 3, cLoc + 3, -1, -1));
-        
-        // //checks top right diagonal
-        // win.push(this.checkFour(rLoc - 3, cLoc + 3, 1, -1));
-        
-        // //checks bottom left diagonal
-        // win.push(this.checkFour(rLoc + 3, cLoc - 3, -1, 1));
         return false;
     }
 
-    // minimax(board, depth, isMaximizing){
+    score(){
+        let max = -Infinity;
+        for(let i in this.pieces){
+            let piece = this.pieces[i];
+            let piecesScores = [];
+            for(let i = 0; i < Board.directions.length; i++){
+                let rLoc = piece.r;
+                let cLoc = piece.c;
+                let dict = this.checkFour(rLoc + Board.directions[i][0], cLoc + Board.directions[i][1], Board.directions[i][2], Board.directions[i][3]);
+                // console.log(dict)
+                piecesScores.push(this.scoreFromCombination(dict["human"],dict["computer"],dict["unplayed"],piece.r,piece.c));
+            }
+            max = Math.max(piecesScores.reduce((a,b) => Math.max(a,b)), max)
+        }
+        return max;
+    }
 
-    // }
+    scoreFromCombination(human, computer, unplayed,r,c){
+        if(computer == 4){
+            return 1000;
+        }
+        if(computer==3 && unplayed == 0 && this.checkInBounds(r+1,c) && this.mat[r+1][c].playedBy != "unplayed"){
+            return 500;
+            console.log("HEY");
+        } 
+        if(human==3 && unplayed == 0 && this.checkInBounds(r+1,c) && this.mat[r+1][c].playedBy != "unplayed"){
+            return -500;
+            console.log("HEY");
+        } 
+        if(human == 4)
+            return -10000;
+        return -human * 200 + computer * 200 + unplayed * 50; //need to reward unplayed pathway
+    }
+
+    undoMove(){
+        let piece = this.pieces.pop();
+        piece.click(false);
+        piece.playedBy = "unplayed";
+
+    }
+
+    miniMax(depth, player){
+        if(this.checkWinner() || depth > 3){
+            return this.score();
+        }
+
+        if(player == "computer"){
+            let hiScore = -Infinity;
+            for(let i = 0; i < this.mat[0].length; i++){
+                if(this.mat[0][i].playedBy == "unplayed"){
+                    this.setCurrentPos(0,i);
+                    this.mat[0][i].click(true);
+                    this.mat[0][i].setPlayedBy("computer");
+                    this.update();
+                    let score = this.miniMax(depth + 1, "human");
+                    this.undoMove(); 
+                    hiScore = Math.max(hiScore, score);
+                }
+            }
+            return hiScore;
+        }
+
+        else{
+            let hiScore = Infinity;
+            for(let i = 0; i < this.mat[0].length; i++){
+                if(this.mat[0][i].playedBy == "unplayed"){
+                    this.setCurrentPos(0,i);
+                    this.mat[0][i].click(true);
+                    this.mat[0][i].setPlayedBy("human");
+                    this.update();
+                    let score = this.miniMax(depth + 1, "computer");
+                    this.undoMove(); 
+                    hiScore = Math.min(hiScore, score);
+                }
+            }
+            return hiScore;
+        }
+    }
+
+    move(r,c){
+
+    }
+
+    computerMove(){
+        let hiScore = -Infinity;
+        let move;
+        for(let i = 0; i < this.mat[0].length; i++){
+            if(this.mat[0][i].playedBy == "unplayed"){
+                this.setCurrentPos(0,i);
+                this.mat[0][i].click(true);
+                this.mat[0][i].setPlayedBy("computer");
+                this.update();
+                let score = this.miniMax(0, "human");
+                this.undoMove(); 
+                if (score > hiScore) {
+                    hiScore = score;
+                    move = [0 , i];
+                }
+            }
+        }
+        this.setCurrentPos(move[0], move[1]);
+        this.mat[move[0]][move[1]].click(true);
+        this.mat[move[0]][move[1]].setPlayedBy("computer");
+        this.update();
+        this.incrementTurn();
+    }
 }
 
 class Cell{
@@ -153,6 +222,7 @@ class Cell{
         this.clicked = false;
         this.x = c * w;
         this.y = r * w;
+        this.playedBy = "unplayed";
     }
 
     setImage(image){
@@ -170,17 +240,13 @@ class Cell{
         square(this.x,this.y,this.w);
         if(this.clicked){
             if(this.playedBy=="human"){
-                // stroke(220,30,30);
                 fill(237,39,39);
             }
-            else{
-                // noStroke();
-                // stroke(218,226,40);
+            else if (this.playedBy=="computer"){
                 fill(234,243,31);
             }
             circle(this.x+this.w/2,this.y+this.w/2,circ);
 
-            // image(this.image, this.x, this.y);
         }
     }
 
